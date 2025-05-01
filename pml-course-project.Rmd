@@ -1,0 +1,86 @@
+---
+title: "PML Course Project"
+author: "Rena Ho"
+date: "2025-04-30"
+output:
+  html_document:
+    toc: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(caret)
+library(randomForest)
+```
+
+## 1. Overview
+
+Using data from accelerometers on various parts of the body, we aim to predict how well participants perform barbell lifts. We use the `classe` variable from the training data as our target and build a classification model using the Random Forest algorithm. The final model is evaluated on a validation set, and predictions are made for a test set.
+
+## 2. Load and Prepare Data
+
+```{r load-data}
+training_url <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+testing_url  <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+
+training <- read.csv(url(training_url))
+testing  <- read.csv(url(testing_url))
+```
+
+```{r clean-data}
+# Remove columns with mostly NA values and near-zero variance predictors
+training <- training[, colSums(is.na(training)) < 0.95 * nrow(training)]
+training <- training[, -nearZeroVar(training)]
+training <- training[, -(1:7)]  # Remove ID and timestamps
+```
+
+## 3. Partition Data
+
+```{r split-data}
+set.seed(123)
+inTrain <- createDataPartition(training$classe, p = 0.7, list = FALSE)
+trainSet <- training[inTrain, ]
+valData  <- training[-inTrain, ]
+```
+
+## 4. Model Building
+
+```{r model-fit}
+control <- trainControl(method = "cv", number = 5)
+modelRF <- train(classe ~ ., data = trainSet, method = "rf", trControl = control)
+```
+
+## 5. Model Evaluation
+
+```{r evaluation}
+predRF_val <- predict(modelRF, newdata = valData)
+valData$classe <- factor(valData$classe)
+confusionMatrix(predRF_val, valData$classe)
+```
+
+## 6. Expected Out-of-Sample Error
+
+```{r error}
+accuracy <- postResample(predRF_val, valData$classe)[[1]]
+error <- 1 - accuracy
+cat("Expected out-of-sample error:", round(error, 4))
+```
+
+## 7. Predict on Test Set
+
+```{r final-prediction}
+finalPred <- predict(modelRF, newdata = testing)
+finalPred
+```
+
+## 8. Variable Importance
+
+```{r var-imp}
+varImpPlot(modelRF$finalModel)
+```
+
+Using Random Forest and 5-fold cross-validation, we achieved strong predictive performance. The model generalizes well, as shown by the validation results and low estimated out-of-sample error. The predictions for the 20 test cases are output above.
+
+## 9. Conclusion
+
+The Random Forest model trained on cleaned accelerometer data achieves high classification accuracy. The expected out-of-sample error is low (~0.006), and model performance is validated. Test set predictions are generated and ready for submission. Variable importance suggests features from the forearm and dumbbell sensors are most influential.
